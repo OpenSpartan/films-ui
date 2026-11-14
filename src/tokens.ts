@@ -26,11 +26,8 @@ export const C = {
   team1:    '#ef4444',   // Cobra; never for death marks
 } as const;
 
-/** Team colours by team id (`TEAM[id % TEAM.length]`), up to 8 teams on the
- *  dark background: blue, red, amber, green, purple, cyan, pink, lime. The
- *  first two are C.team0 and C.team1 (Eagle, Cobra). Team headers, groups
- *  and the score only; never death marks. */
-export const TEAM: readonly string[] = [
+/** Each team's own colour, the default of TEAM. */
+const TEAM_DEFAULT: readonly string[] = [
   C.team0,   // Eagle, blue
   C.team1,   // Cobra, red
   '#f59e0b', // amber
@@ -40,6 +37,20 @@ export const TEAM: readonly string[] = [
   '#ec4899', // pink
   '#a3e635', // lime
 ];
+
+/** Team colours by team id (`TEAM[id % TEAM.length]`), up to 8 teams on the
+ *  dark background: blue, red, amber, green, purple, cyan, pink, lime. The
+ *  first two are C.team0 and C.team1 (Eagle, Cobra). Team headers, groups
+ *  and the score only; never death marks. A broadcast can give a team
+ *  another colour (setTeamColor); everything that draws teams reads TEAM. */
+export const TEAM: readonly string[] = [...TEAM_DEFAULT];
+
+/** Give team `team` another colour (a broadcast's picked team colours), or
+ *  its own back with null. */
+export function setTeamColor(team: number, color: string | null): void {
+  if (!Number.isInteger(team) || team < 0 || team >= TEAM_DEFAULT.length) return;
+  (TEAM as string[])[team] = color ?? TEAM_DEFAULT[team]!;
+}
 
 /** The map's own palette: footprint fills by kind, their outline, and the
  *  spawn and flag rings (same colours as Films' generateGeometrySvg). */
