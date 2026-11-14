@@ -20,6 +20,9 @@
   "scripts": {
     "check": "tsc --noEmit"
   },
+  "dependencies": {
+    "lucide": "^1.8.0"
+  },
   "devDependencies": {
     "typescript": "^5.9.3"
   }
