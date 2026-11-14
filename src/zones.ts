@@ -192,7 +192,7 @@ export function drawZones(
     if (p.phase === 'countdown' && p.countdownSeconds !== undefined) {
       ctx.font = `600 11px system-ui`;
       ctx.fillStyle = C.text;
-      ctx.fillText(`Live in ${p.countdownSeconds} s`, sx, below + 5);
+      ctx.fillText(`Live in ${Math.max(0, Math.ceil(p.countdownSeconds))} s`, sx, below + 5);
     }
     // King of the Hill: each team's points on the live hill as a bar in its
     // colour, and the seconds of sole control it still needs (a point a
