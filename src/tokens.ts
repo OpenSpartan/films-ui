@@ -79,7 +79,7 @@ export const RADIUS = { none: '0', mark: '2px' } as const;
 /** Spacing scale, px. Page gutter S[6], bar padding S[3] S[6], section body S[5]. */
 export const S = { 0: 0, 1: 2, 2: 4, 3: 6, 4: 8, 5: 12, 6: 16, 7: 24, 8: 32, 9: 48 } as const;
 
-export const MONO = 'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
+const MONO = 'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
 
 /** Type scale. `cap` always goes with CAPS letter-spacing (see dom.ts). */
 export const T = {

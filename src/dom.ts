@@ -43,13 +43,9 @@ const BAR = (edge: 'top' | 'bottom'): string =>
   `display:flex;align-items:center;gap:12px;padding:6px 16px;font:${T.sm};` +
   `border-${edge}:1px solid ${C.line}`;
 
-/** Chrome strip: toolbar, legend, timeline, sub-headers. `edge` picks the
- *  hairline side. Padding 6px 16px so stacked bars share the page gutter. */
-export function bar(edge: 'top' | 'bottom', ...kids: (Node | string)[]): HTMLDivElement {
-  return el('div', BAR(edge), ...kids);
-}
-
-/** `bar()` as a landmark element (header, footer, nav). */
+/** A chrome strip (toolbar, legend, timeline, sub-header) as `tag`: a div
+ *  or a landmark (header, footer, nav). `edge` picks the hairline side.
+ *  Padding 6px 16px so stacked bars share the page gutter. */
 export function barEl<K extends 'header' | 'footer' | 'div' | 'nav'>(
   tag: K, edge: 'top' | 'bottom', ...kids: (Node | string)[]
 ): HTMLElementTagNameMap[K] {

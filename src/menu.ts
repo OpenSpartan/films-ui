@@ -1,6 +1,6 @@
 // Menus and floating panels: menu (action, radio or check), dropdown (a
-// menu under its trigger, a bottom sheet on phones), select, popover,
-// rich tooltip and the bottom sheet itself. Raised panels, sharp corners.
+// menu under its trigger, a bottom sheet on phones), select, popover, hover
+// card and the bottom sheet itself. Raised panels, sharp corners.
 
 import { C, T, H, ICON, RADIUS, alpha } from './tokens.js';
 import { el, btn, ui, UI, CAPS, TRUNCATE } from './dom.js';
@@ -334,50 +334,8 @@ export function popover(
   return { close };
 }
 
-let tip: HTMLDivElement | undefined;
-let tipSeq = 0;
-
-/** A plain string is the native title (free, fine on desktop). A function
- *  is a rich tooltip: a raised box after 400ms of hover or focus, hidden on
- *  leave or blur, never on touch (its content must be reachable by tap). */
-export function tooltip(target: HTMLElement, text: string | (() => string | Node)): void {
-  if (typeof text === 'string') { target.title = text; return; }
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const id = `tip-${++tipSeq}`;
-  const hide = (): void => {
-    if (timer !== undefined) { clearTimeout(timer); timer = undefined; }
-    if (tip && tip.dataset.owner === id) { tip.remove(); tip.dataset.owner = ''; }
-    target.removeAttribute('aria-describedby');
-  };
-  const show = (): void => {
-    if (!target.isConnected) return;
-    if (!tip) {
-      tip = el('div',
-        `position:fixed;z-index:70;background:${C.raised};border:1px solid ${C.border};border-radius:${RADIUS.none};` +
-        `padding:6px 8px;font:${T.sm};color:${C.text};max-width:280px;pointer-events:none`);
-      tip.setAttribute('role', 'tooltip');
-    }
-    const t = tip;
-    t.id = id;
-    t.dataset.owner = id;
-    const c = text();
-    t.replaceChildren(c);
-    document.body.appendChild(t);
-    place(t, target, 'start', 'auto');
-    target.setAttribute('aria-describedby', id);
-  };
-  const later = (): void => {
-    if (timer !== undefined) clearTimeout(timer);
-    timer = setTimeout(() => { timer = undefined; show(); }, 400);
-  };
-  target.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') later(); });
-  target.addEventListener('pointerleave', hide);
-  target.addEventListener('focus', () => { if (matchMedia('(hover:hover)').matches) later(); });
-  target.addEventListener('blur', hide);
-  target.addEventListener('pointerdown', hide);
-}
-
 let card: HTMLDivElement | undefined;
+let cardSeq = 0;
 
 /** A raised panel of details beside `target` after the pointer rests on it
  *  for `delay` ms: a richer tooltip, built when shown. It opens to the
@@ -386,7 +344,7 @@ let card: HTMLDivElement | undefined;
  *  leaves, presses or scrolls. Never on touch. */
 export function hoverCard(target: HTMLElement, build: () => HTMLElement, delay = 400): void {
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const id = `card-${++tipSeq}`;
+  const id = `card-${++cardSeq}`;
   const hide = (): void => {
     if (timer !== undefined) { clearTimeout(timer); timer = undefined; }
     if (card && card.dataset.owner === id) { card.remove(); card.dataset.owner = ''; }

@@ -42,17 +42,15 @@ app's options.
 
 ### Served as TypeScript (Cartographer)
 
-Cartographer runs no Node. Its Rust server serves the files under `src/` transpiled on request with the
-[oxc](https://oxc.rs) crate, so the browser loads them as plain ES modules. Every relative import names
-its file with `.js` (`./dom.js` for `dom.ts`), and every file transpiles on its own (`isolatedModules`),
-so a server that answers `dom.js` with `dom.ts` stripped of its types is all it takes.
+Cartographer runs no Node. Its build strips the types from each file under `src/` with the
+[oxc](https://oxc.rs) crate and embeds the result, and its server serves them under `/ui/` as plain ES
+modules (in development, stripped on each request from a checkout). Every relative import names its file
+with `.js` (`./dom.js` for `dom.ts`), and every file transpiles on its own (`isolatedModules`), so
+answering `dom.js` with `dom.ts` stripped of its types is all it takes.
 
-The one bare import is `lucide` (in `icons.ts`), the icons' shapes and the only runtime dependency. A
-page loaded without a bundler maps it to lucide's ES module build with an import map:
-
-```html
-<script type="importmap">{ "imports": { "lucide": "/vendor/lucide/lucide.js" } }</script>
-```
+Every import is relative (CI checks it), and films-ui has no runtime dependencies: the icons' shapes
+are Lucide's, copied into `icons.ts`. So a page imports any module, `/ui/icons.js` included, with no
+import map.
 
 ## Contents
 
@@ -60,14 +58,14 @@ Each module is `src/<name>.ts`, imported as `films-ui/<name>`; `films-ui` alone 
 
 | Module | What |
 |---|---|
-| `tokens` | The design tokens, the only hex literals: colours `C`, team colours `TEAM` (by team id), the map's palette `MAP`, `alpha()`, spacing `S`, type `T`, heights `H`, `BAR` and `ROW`, icon sizes `ICON`, `RADIUS`, `FONT`, `MONO` |
+| `tokens` | The design tokens, the only hex literals: colours `C`, team colours `TEAM` (by team id, and `setTeamColor` for a broadcast's own), the map's palette `MAP`, `alpha()`, spacing `S`, type `T`, heights `H`, `BAR` and `ROW`, icon sizes `ICON`, `RADIUS`, `FONT` |
 | `styles` | `mountStyles(...extra)`: the one injected stylesheet (custom properties, focus, hover, disabled, touch sizes, breakpoints, card tables, keyframes, reduced motion), with the app's own rules after it |
-| `dom` | `el()`, the atom every part is built from, and `btn`, `row`, `col`, `bar`, `barEl`, `ui`/`UI` (the stylesheet's hooks), `chip`, `swatch`, `tag`, `countTag`, `codeTag`, `botTag`, `itemChip`, `ago`, `skel`, `setActive`, `setDisabled`, and the cssText constants (`NUM`, `CAPS`, `TRUNCATE`, `SPACER`, `STRIP`, `BTN_RESET`, `SR_ONLY`) |
-| `format` | Times, durations, counts and ranges as text |
-| `icons` | Lucide icons rendered to SVG, one meaning each; `tint`, `spinner`, `statusIcon`, `mapKind` |
+| `dom` | `el()`, the atom every part is built from, and `btn`, `row`, `col`, `barEl`, `ui`/`UI` (the stylesheet's hooks), `chip`, `swatch`, `tag`, `countTag`, `codeTag`, `botTag`, `itemChip`, `ago`, `skel`, `setActive`, `setDisabled`, and the cssText constants (`NUM`, `CAPS`, `TRUNCATE`, `SPACER`, `STRIP`, `BTN_RESET`, `SR_ONLY`) |
+| `format` | Times, durations, ranges, a user's name and errors as text |
+| `icons` | Lucide icons rendered to SVG, one meaning each; `tint`, `spinner`, `mapKind` |
 | `button` | The one button factory, `iconButton`, `buttonGroup`, `busy`, `link` |
 | `controls` | `toggle`, `iconToggle`, `segmented`, `tabs`, `textInput`, `copyChip`, `copyValue` |
-| `menu` | `menu`, `dropdown`, `select`, `popover`, `tooltip`, `hoverCard`, `sheet`, `closeOverlays` |
+| `menu` | `menu`, `dropdown`, `select`, `popover`, `hoverCard`, `sheet`, `closeOverlays` |
 | `cells` | Joined cells, the scoreboard's look, and `teamBand` |
 | `section` | `section`, `pageColumn`, `band`, `statStrip` |
 | `status` | `notice`, `toast`, `copyWithToast`, `statusList`, `stateTag`, `statusDot`, `emptyState`, `progressPanel`, `infoMark` |
@@ -77,7 +75,7 @@ Each module is `src/<name>.ts`, imported as `films-ui/<name>`; `films-ui` alone 
 | `appHeader` | `mountAppHeader(parent, {name, beta, right})`, `setBreadcrumb`, `refreshAppHeader`: the brand, the crumbs and a right side the app builds |
 | `appFooter` | `appFooter(kids, maxWidth?)`, `pageFrame`, `listHost` |
 | `markers` | The game's map markers: `loadMarkers(url)`, `markerImage(name, h, color)`; `paintIcon` and `loadImage` for any atlas |
-| `teamEmblems` | `setTeamEmblemIndex(url)`, `teamEmblem(team, size, opacity)` |
+| `teamEmblems` | `loadTeamEmblems(url)`, `teamEmblem(team, size, opacity)` |
 | `zones` | `drawZones()`: zones and hills from a plain account of each one now |
 
 ### Zones
@@ -103,10 +101,12 @@ atlas, a pip per player inside, King of the Hill's point bars and a capture's fl
 
 ## No game assets
 
-`films-ui` carries no art from the game: no icons, atlases or emblems. Those stay with each app. A part
-that draws them is told where they are served: `loadMarkers(url)` takes the URL of `markers.json` (the
-atlas it names is fetched from beside it), `setTeamEmblemIndex(url)` that of `teams.json`. Until they
-load, markers are left out and emblems hidden.
+`films-ui` carries no art from the game: no HUD icons, atlases or emblems. Those stay with each app. The
+app says where they are served, once per page and the same way for each: `loadMarkers(url)` takes the
+URL of `markers.json` and `loadTeamEmblems(url)` that of `teams.json`; the files an index names are
+fetched from beside it. Each returns a promise of what it loaded (undefined when it's unavailable), and
+the first call's URL is the page's. The order doesn't matter: until they load, markers are left out (a
+canvas redraws when `loadMarkers` resolves) and emblems stay hidden, then show.
 
 ## Checking
 
@@ -115,8 +115,10 @@ npm install
 npm run check   # tsc --noEmit, strict
 ```
 
-CI runs the same on every push and pull request.
+CI runs the same on every push and pull request, and checks that every import is relative. TypeScript
+is the only package, pinned to one version, so there is no lockfile.
 
 ## License
 
-[MIT](LICENSE).
+[MIT](LICENSE). The icon shapes in `icons.ts` are [Lucide](https://lucide.dev)'s (ISC; some from
+Feather, MIT), with their licences there.
