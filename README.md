@@ -93,6 +93,12 @@ const zones: ZoneNow[] = [
 drawZones(ctx, (x, y) => [ox + x * zoom, oy - y * zoom], zoom, zones, { width, height });
 ```
 
+Two optional arguments follow. The first styles them: `{ text, muted, bg, family }`, each falling back to
+Films' look; Cartographer passes its Halo HUD colours and typeface. The second lists boxes on the canvas
+(`{ x, y, w, h }`, CSS px) that the badges keep clear of: a badge over one, such as a weapon at the zone's
+centre and its timer, is lifted just above it. A badge's footprint is fixed per zone, whatever its phase,
+so a badge that moved stays put as the zone changes.
+
 A zone is filled in its owner's colour, hatched with the game's contested marker while contested, ringed
 by the capture's progress in the capturing team's colour, dashed with 'Live in N s' while a hill counts
 down, a faint dashed outline while `off`, and carries its letter (or a hill's crown) from the marker
