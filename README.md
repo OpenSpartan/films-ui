@@ -77,6 +77,7 @@ Each module is `src/<name>.ts`, imported as `films-ui/<name>`; `films-ui` alone 
 | `markers` | Map markers: `loadMarkers(url)`, `markerImage(name, h, color)`; `paintIcon` and `loadImage` for any atlas |
 | `teamEmblems` | `loadTeamEmblems(url)`, `teamEmblem(team, size, opacity)` |
 | `zones` | `drawZones()`: zones and hills from a plain account of each one now |
+| `floor` | Floor plans (rings with their heights): `floorBands`, `ringsAt` (an elevation slice), `floorPath`, `floorHeights`, `drawFloor` |
 
 ### Zones
 
@@ -104,6 +105,25 @@ by the capture's progress in the capturing team's colour, dashed with 'Live in N
 down, a faint dashed outline while `off`, and carries its letter (or a hill's crown) from the marker
 atlas, a pip per player inside, King of the Hill's point bars and a capture's flash. Team colours are
 `TEAM`'s.
+
+### Floors
+
+A floor plan is the navigation floor of a level or a baked Forge map: rings of world-space points,
+each with the heights it spans (`{ z: [min, max], hole, p: [x0, y0, ...] }`, levelcat's and the
+extractor's format). `floorBands` groups the rings into height bands, lowest first; `drawFloor`
+fills each band a little brighter than the one under it, with contour edges, so a map's storeys
+read at a glance. `ringsAt` slices at an elevation, and `drawFloor` draws the rings it leaves out
+faint under the rest:
+
+```ts
+import { floorHeights, floorBands, ringsAt, floorPath, drawFloor } from 'films-ui/floor';
+
+const { min, max } = floorHeights(plan.rings)!;
+const kept = ringsAt(plan.rings, followedHeight);  // or null for every floor
+const bands = floorBands(kept, min, max);
+ctx.setTransform(/* world to canvas */);
+drawFloor(ctx, bands, null, { low: MAP.floor, high: MAP.floorHigh, edge: MAP.wall, away: MAP.nlv }, { unit: pxPerWorldUnit });
+```
 
 ## Markers and emblems
 

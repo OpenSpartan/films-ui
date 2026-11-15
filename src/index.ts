@@ -20,3 +20,4 @@ export * from './appFooter.js';
 export * from './markers.js';
 export * from './teamEmblems.js';
 export * from './zones.js';
+export * from './floor.js';

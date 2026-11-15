@@ -57,6 +57,8 @@ export function setTeamColor(team: number, color: string | null): void {
 export const MAP = {
   nlv:     '#1a1f2e', terrain: '#1a2e1a',
   floor:   '#2d3748', ramp:    '#2c5282', prim:   '#3d4852',
+  // A floor plan's highest band (floor.ts: the bands between mix from floor).
+  floorHigh: '#4a6382',
   wall:    '#4a5568', column:  '#718096', cover:  '#553c2e',
   blocker: '#7b2d2d', door:    '#5a4a2a', other:  '#2a2a3a',
   outline: '#000000',
