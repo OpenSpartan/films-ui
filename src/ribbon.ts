@@ -10,8 +10,6 @@ import { button, buildButton } from './button.js';
 import { toggle } from './controls.js';
 import { menu, dropdown, popover, sheet, MENU_CLOSE, type MenuItem } from './menu.js';
 
-export interface Command { el: HTMLElement; key: string }
-
 export type RibbonMode = 'full' | 'compact' | 'icons' | 'sheet';
 
 /** Menu builders of split and drop commands, and drop badges, by element. */

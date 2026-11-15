@@ -24,7 +24,17 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
-      # --ignore-scripts: neither TypeScript nor the runtime dependencies need
-      # an install script.
+      # Cartographer serves src/ to the browser as ES modules, with no bundler
+      # to resolve a package name: every import must be relative.
+      - name: Relative imports only
+        run: |
+          bare=$(grep -nE "(^|[^.[:alnum:]_])(from|import)[[:space:]]*\(?[[:space:]]*['\"][^./'\"]" src/*.ts | grep -vE '^[^:]+:[0-9]+:[[:space:]]*(//|/?\*)' || true)
+          if [ -n "$bare" ]; then
+            echo "::error::Imports that aren't relative:"
+            echo "$bare"
+            exit 1
+          fi
+      # TypeScript is the only package, pinned, so there is no lockfile.
+      # --ignore-scripts: it needs no install script.
       - run: npm install --ignore-scripts --no-audit --no-fund
       - run: npm run check

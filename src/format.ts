@@ -1,6 +1,6 @@
 /** What an empty value renders as: nothing. Tables mark such cells
  *  `aria-label="Unknown"`; where a word is needed, write 'None' or 'Unknown'. */
-export const EMPTY = '';
+const EMPTY = '';
 
 /** `m:ss` with zero-padded seconds. Floors both, never shows 60. */
 export function mmss(sec: number): string {
@@ -21,10 +21,6 @@ export function fmtDate(iso?: string): string {
   return new Intl.DateTimeFormat(undefined, {
     month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
   }).format(new Date(iso));
-}
-
-export function fmtCount(n: number): string {
-  return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 }
 
 /** Relative to now: 'just now', '5 min ago', '3 h ago', '2 d ago', or
