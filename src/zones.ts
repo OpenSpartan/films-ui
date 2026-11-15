@@ -8,7 +8,8 @@
 // capturing team's colour; a contested zone is hatched with a marker on its
 // badge, and a pip per player inside sits under the badge. Without a shape,
 // a ring of fixed size. Positions are world units, mapped by the caller's
-// `toScreen`, so a turned map turns its boxes with it.
+// `toScreen`, so a turned map turns its boxes with it. A badge keeps clear of
+// the caller's marks (`avoid`): one under it lifts the badge above it.
 
 import { C, FONT, TEAM, alpha } from './tokens.js';
 
@@ -81,6 +82,37 @@ const teamColor = (team: number | undefined): string =>
 /** World units to CSS px on the canvas. */
 export type ToScreen = (x: number, y: number) => [number, number];
 
+/** A box on the canvas, CSS px. */
+export interface ScreenBox { x: number; y: number; w: number; h: number }
+
+/** What a badge takes round its centre, CSS px: the progress ring and the
+ *  contested marker above; the pips, or a hill's countdown and its two
+ *  teams' bars, below. Fixed per zone, whatever its phase, so a badge that
+ *  had to move never moves again when the zone changes. */
+function badgeBox(p: ZoneNow, x: number, y: number): ScreenBox {
+  const hill = p.label === 'H' || p.hill !== undefined;
+  const half = hill ? 48 : BADGE + 13;
+  const below = hill ? BADGE + 16 + 2 * 11 : BADGE + 10;
+  return { x: x - half, y: y - BADGE - 10, w: 2 * half, h: BADGE + 10 + below };
+}
+
+const overlaps = (m: ScreenBox, n: ScreenBox, gap: number): boolean =>
+  m.x < n.x + n.w + gap && m.x + m.w + gap > n.x && m.y < n.y + n.h + gap && m.y + m.h + gap > n.y;
+
+/** Where a badge goes: its zone's centre, or, while that puts it over one
+ *  of `avoid`, just above it. */
+function badgeAt(p: ZoneNow, sx: number, sy: number, avoid: readonly ScreenBox[]): [number, number] {
+  let y = sy;
+  for (let i = 0; i < 4; i++) {
+    const b = badgeBox(p, sx, y);
+    const hit = avoid.filter(a => overlaps(b, a, 2));
+    if (!hit.length) break;
+    const top = Math.min(...hit.map(a => a.y));
+    y -= b.y + b.h + 4 - top;
+  }
+  return [sx, y];
+}
+
 /** The zone's outline as a path on `ctx`, in CSS px; (sx, sy) is its centre
  *  on screen, `z` CSS px per world unit. */
 function outline(ctx: CanvasRenderingContext2D, p: ZoneNow, toScreen: ToScreen, sx: number, sy: number, z: number): void {
@@ -103,10 +135,12 @@ function outline(ctx: CanvasRenderingContext2D, p: ZoneNow, toScreen: ToScreen, 
 
 /** Draw `zones` on `ctx`. `toScreen` maps world units to CSS px on the
  *  canvas, `scale` is CSS px per world unit, `view` the canvas's size in CSS
- *  px (zones out of it are skipped). */
+ *  px (zones out of it are skipped), `avoid` the caller's marks the badges
+ *  keep clear of (a weapon on a zone's centre, its timer). */
 export function drawZones(
   ctx: CanvasRenderingContext2D, toScreen: ToScreen, scale: number,
   zones: readonly ZoneNow[], view: { width: number; height: number }, style: ZoneStyle = {},
+  avoid: readonly ScreenBox[] = [],
 ): void {
   S = { ...DEFAULT_STYLE, ...style };
   const z = scale;
@@ -163,7 +197,8 @@ export function drawZones(
       ctx.restore();
     }
     // The badge: the letter (or Hill) in a dark disc, ringed by the progress.
-    ctx.beginPath(); ctx.arc(sx, sy, BADGE, 0, 2 * Math.PI);
+    const [bx, by] = badgeAt(p, sx, sy, avoid);
+    ctx.beginPath(); ctx.arc(bx, by, BADGE, 0, 2 * Math.PI);
     ctx.fillStyle = S.bg;
     ctx.fill();
     ctx.strokeStyle = alpha(color, 0.9);
@@ -175,33 +210,33 @@ export function drawZones(
     if (progress > 0) {
       ctx.strokeStyle = p.capturing !== undefined ? teamColor(p.capturing) : S.text;
       ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(sx, sy, BADGE + 3, -Math.PI / 2, -Math.PI / 2 + progress * 2 * Math.PI); ctx.stroke();
+      ctx.beginPath(); ctx.arc(bx, by, BADGE + 3, -Math.PI / 2, -Math.PI / 2 + progress * 2 * Math.PI); ctx.stroke();
     }
     const label = p.label ?? '';
     const icon = label ? badgeIcon(label) : null;
     if (icon) {
-      ctx.drawImage(icon.canvas, sx - icon.w / 2, sy - icon.h / 2, icon.w, icon.h);
+      ctx.drawImage(icon.canvas, bx - icon.w / 2, by - icon.h / 2, icon.w, icon.h);
     } else if (label) {
       ctx.fillStyle = S.text;
       ctx.font = `700 12px ${S.family}`;
-      ctx.fillText(label, sx, sy + 0.5);
+      ctx.fillText(label, bx, by + 0.5);
     }
     // A pip per player inside, in their team's colour, under the badge.
     const inside = p.inside ?? [];
     inside.slice(0, 8).forEach((team, k) => {
       const n = Math.min(8, inside.length);
       ctx.fillStyle = teamColor(team);
-      ctx.fillRect(sx - (n * 6 - 2) / 2 + k * 6, sy + BADGE + 6, 4, 4);
+      ctx.fillRect(bx - (n * 6 - 2) / 2 + k * 6, by + BADGE + 6, 4, 4);
     });
-    let below = sy + BADGE + 16;
+    let below = by + BADGE + 16;
     // Contested: its marker at the badge's corner, so nothing under the
     // badge moves when the state changes.
-    if (p.contested) drawContested(ctx, sx + BADGE, sy - BADGE);
+    if (p.contested) drawContested(ctx, bx + BADGE, by - BADGE);
     // The countdown to a hill going live, in seconds.
     if (p.phase === 'countdown' && p.countdownSeconds !== undefined) {
       ctx.font = `600 11px ${S.family}`;
       ctx.fillStyle = S.text;
-      ctx.fillText(`Live in ${Math.max(0, Math.ceil(p.countdownSeconds))} s`, sx, below + 5);
+      ctx.fillText(`Live in ${Math.max(0, Math.ceil(p.countdownSeconds))} s`, bx, below + 5);
     }
     // King of the Hill: each team's points on the live hill as a bar in its
     // colour, and the seconds of sole control it still needs (a point a
@@ -213,7 +248,7 @@ export function drawZones(
       for (const tm of p.hill.teams) {
         const pts = tm.points;
         const f = Math.min(1, pts / p.hill.toWin);
-        const x0 = sx - W / 2 - 14;
+        const x0 = bx - W / 2 - 14;
         ctx.fillStyle = alpha(S.bg, 0.85);
         ctx.fillRect(x0 - 2, below - 2, W + 36, H + 4);
         ctx.fillStyle = alpha(teamColor(tm.team), 0.3);
