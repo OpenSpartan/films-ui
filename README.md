@@ -74,7 +74,7 @@ Each module is `src/<name>.ts`, imported as `films-ui/<name>`; `films-ui` alone 
 | `ribbon` | The captioned command bar: `ribbon`, `ribbonGroup`, `command`, `splitCommand`, `dropCommand` |
 | `appHeader` | `mountAppHeader(parent, {name, beta, right})`, `setBreadcrumb`, `refreshAppHeader`: the brand, the crumbs and a right side the app builds |
 | `appFooter` | `appFooter(kids, maxWidth?)`, `pageFrame`, `listHost` |
-| `markers` | The game's map markers: `loadMarkers(url)`, `markerImage(name, h, color)`; `paintIcon` and `loadImage` for any atlas |
+| `markers` | Map markers: `loadMarkers(url)`, `markerImage(name, h, color)`; `paintIcon` and `loadImage` for any atlas |
 | `teamEmblems` | `loadTeamEmblems(url)`, `teamEmblem(team, size, opacity)` |
 | `zones` | `drawZones()`: zones and hills from a plain account of each one now |
 
@@ -99,18 +99,17 @@ Films' look; Cartographer passes its Halo HUD colours and typeface. The second l
 centre and its timer, is lifted just above it. A badge's footprint is fixed per zone, whatever its phase,
 so a badge that moved stays put as the zone changes.
 
-A zone is filled in its owner's colour, hatched with the game's contested marker while contested, ringed
+A zone is filled in its owner's colour, hatched with the contested marker while contested, ringed
 by the capture's progress in the capturing team's colour, dashed with 'Live in N s' while a hill counts
 down, a faint dashed outline while `off`, and carries its letter (or a hill's crown) from the marker
 atlas, a pip per player inside, King of the Hill's point bars and a capture's flash. Team colours are
 `TEAM`'s.
 
-## No game assets
+## Markers and emblems
 
-`films-ui` carries no art from the game: no HUD icons, atlases or emblems. Those stay with each app. The
-app says where they are served, once per page and the same way for each: `loadMarkers(url)` takes the
-URL of `markers.json` and `loadTeamEmblems(url)` that of `teams.json`; the files an index names are
-fetched from beside it. Each returns a promise of what it loaded (undefined when it's unavailable), and
+`films-ui` ships no images: each app serves its own marker atlas and team emblems and says where, once
+per page and the same way for each: `loadMarkers(url)` takes the URL of `markers.json` and
+`loadTeamEmblems(url)` that of `teams.json`; the files an index names are fetched from beside it. Each returns a promise of what it loaded (undefined when it's unavailable), and
 the first call's URL is the page's. The order doesn't matter: until they load, markers are left out (a
 canvas redraws when `loadMarkers` resolves) and emblems stay hidden, then show.
 

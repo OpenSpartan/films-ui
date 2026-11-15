@@ -1,6 +1,6 @@
-// The game's map markers: one white-on-transparent atlas (markers.<hash>.png)
+// Map markers: one white-on-transparent atlas (markers.<hash>.png)
 // and its index (markers.json: the atlas's file and each marker's cell by
-// name), served by the app wherever it keeps them; films-ui carries no art.
+// name), served by the app wherever it keeps them; films-ui ships no images.
 // loadMarkers() fetches them once per page load; a missing or malformed
 // index resolves to "no markers", and every caller then draws without them.
 // Icons are tinted by drawing the cell into a canvas and filling over it
@@ -39,7 +39,7 @@ export function paintIcon({ image, cell }: { image: HTMLImageElement; cell: Icon
   return { canvas, w, h };
 }
 
-/** The game's map markers, by name in markers.json. */
+/** The map markers, by name in markers.json. */
 export type MarkerName =
   | 'zoneA' | 'zoneB' | 'zoneC' | 'zoneD' | 'zoneE' | 'zoneF'
   | 'flag' | 'hill' | 'skull' | 'facing' | 'selected' | 'followed' | 'contested';

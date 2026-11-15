@@ -37,7 +37,7 @@ export interface ZoneNow {
   x: number; y: number;
   /** Absent: a ring of fixed size. */
   shape?: ZoneShape;
-  /** 'A' to 'F' (the game's letter marks), 'H' for a hill (its crown), any
+  /** 'A' to 'F' (the letter marks), 'H' for a hill (its crown), any
    *  other text as text, or none. */
   label?: string;
   phase: ZonePhase;
@@ -69,7 +69,7 @@ const MIN_PX = 10;
 /** The centre badge's radius, CSS px. */
 const BADGE = 11;
 
-/** The game's mark for a badge's label: a zone's letter, the crown for a
+/** The mark for a badge's label: a zone's letter, the crown for a
  *  hill; null when it has none or the atlas hasn't loaded. */
 function badgeIcon(label: string): IconImage | null {
   if (label === 'H') return markerImage('hill', 13, S.text);
