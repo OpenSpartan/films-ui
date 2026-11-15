@@ -11,6 +11,14 @@
 // `toScreen`, so a turned map turns its boxes with it.
 
 import { C, FONT, TEAM, alpha } from './tokens.js';
+
+/** The colours and typeface zones draw with; each is optional, and Films'
+ *  look (the tokens) fills the rest. Cartographer passes its HUD's. */
+export interface ZoneStyle { text?: string; muted?: string; bg?: string; family?: string }
+
+const DEFAULT_STYLE: Required<ZoneStyle> = { text: C.text, muted: C.muted, bg: C.bg, family: 'system-ui' };
+/** The style the current drawZones call draws with. */
+let S: Required<ZoneStyle> = DEFAULT_STYLE;
 import { markerImage, type IconImage, type MarkerName } from './markers.js';
 
 /** A zone's own shape, world units: a cylinder of radius `a`, or a box `a`
@@ -63,12 +71,12 @@ const BADGE = 11;
 /** The game's mark for a badge's label: a zone's letter, the crown for a
  *  hill; null when it has none or the atlas hasn't loaded. */
 function badgeIcon(label: string): IconImage | null {
-  if (label === 'H') return markerImage('hill', 13, C.text);
-  return /^[A-F]$/.test(label) ? markerImage(`zone${label}` as MarkerName, 12, C.text) : null;
+  if (label === 'H') return markerImage('hill', 13, S.text);
+  return /^[A-F]$/.test(label) ? markerImage(`zone${label}` as MarkerName, 12, S.text) : null;
 }
 
 const teamColor = (team: number | undefined): string =>
-  team !== undefined && team >= 0 ? TEAM[team % TEAM.length] ?? C.muted : C.muted;
+  team !== undefined && team >= 0 ? TEAM[team % TEAM.length] ?? S.muted : S.muted;
 
 /** World units to CSS px on the canvas. */
 export type ToScreen = (x: number, y: number) => [number, number];
@@ -98,8 +106,9 @@ function outline(ctx: CanvasRenderingContext2D, p: ZoneNow, toScreen: ToScreen, 
  *  px (zones out of it are skipped). */
 export function drawZones(
   ctx: CanvasRenderingContext2D, toScreen: ToScreen, scale: number,
-  zones: readonly ZoneNow[], view: { width: number; height: number },
+  zones: readonly ZoneNow[], view: { width: number; height: number }, style: ZoneStyle = {},
 ): void {
+  S = { ...DEFAULT_STYLE, ...style };
   const z = scale;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -110,7 +119,7 @@ export function drawZones(
     if (p.phase === 'off') {
       // A hill to come or gone: a faint dashed outline.
       ctx.globalAlpha = 0.35;
-      ctx.strokeStyle = C.muted;
+      ctx.strokeStyle = S.muted;
       ctx.lineWidth = 1;
       ctx.setLineDash([3, 3]);
       outline(ctx, p, toScreen, sx, sy, z);
@@ -120,15 +129,15 @@ export function drawZones(
       continue;
     }
     const owned = p.owner !== undefined && p.owner >= 0;
-    const color = owned ? teamColor(p.owner) : p.phase === 'live' ? C.text : C.muted;
+    const color = owned ? teamColor(p.owner) : p.phase === 'live' ? S.text : S.muted;
     outline(ctx, p, toScreen, sx, sy, z);
-    ctx.fillStyle = alpha(owned ? color : C.text, owned ? 0.2 : 0.07);
+    ctx.fillStyle = alpha(owned ? color : S.text, owned ? 0.2 : 0.07);
     ctx.fill();
     if (p.contested) {
       // Contested: white hatching inside the outline.
       ctx.save();
       ctx.clip();
-      ctx.strokeStyle = alpha(C.text, 0.35);
+      ctx.strokeStyle = alpha(S.text, 0.35);
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       for (let d = -reach * 2; d < reach * 2; d += 8) { ctx.moveTo(sx + d - reach, sy + reach); ctx.lineTo(sx + d + reach, sy - reach); }
@@ -155,7 +164,7 @@ export function drawZones(
     }
     // The badge: the letter (or Hill) in a dark disc, ringed by the progress.
     ctx.beginPath(); ctx.arc(sx, sy, BADGE, 0, 2 * Math.PI);
-    ctx.fillStyle = C.bg;
+    ctx.fillStyle = S.bg;
     ctx.fill();
     ctx.strokeStyle = alpha(color, 0.9);
     ctx.lineWidth = 1.5;
@@ -164,7 +173,7 @@ export function drawZones(
     // progress isn't a capture's).
     const progress = p.phase === 'countdown' ? p.countdownFraction ?? 0 : p.progress ?? 0;
     if (progress > 0) {
-      ctx.strokeStyle = p.capturing !== undefined ? teamColor(p.capturing) : C.text;
+      ctx.strokeStyle = p.capturing !== undefined ? teamColor(p.capturing) : S.text;
       ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(sx, sy, BADGE + 3, -Math.PI / 2, -Math.PI / 2 + progress * 2 * Math.PI); ctx.stroke();
     }
@@ -173,8 +182,8 @@ export function drawZones(
     if (icon) {
       ctx.drawImage(icon.canvas, sx - icon.w / 2, sy - icon.h / 2, icon.w, icon.h);
     } else if (label) {
-      ctx.fillStyle = C.text;
-      ctx.font = '700 12px system-ui';
+      ctx.fillStyle = S.text;
+      ctx.font = `700 12px ${S.family}`;
       ctx.fillText(label, sx, sy + 0.5);
     }
     // A pip per player inside, in their team's colour, under the badge.
@@ -190,8 +199,8 @@ export function drawZones(
     if (p.contested) drawContested(ctx, sx + BADGE, sy - BADGE);
     // The countdown to a hill going live, in seconds.
     if (p.phase === 'countdown' && p.countdownSeconds !== undefined) {
-      ctx.font = `600 11px system-ui`;
-      ctx.fillStyle = C.text;
+      ctx.font = `600 11px ${S.family}`;
+      ctx.fillStyle = S.text;
       ctx.fillText(`Live in ${Math.max(0, Math.ceil(p.countdownSeconds))} s`, sx, below + 5);
     }
     // King of the Hill: each team's points on the live hill as a bar in its
@@ -199,19 +208,19 @@ export function drawZones(
     // second, so the least time to win).
     if (p.hill) {
       const W = 56, H = 5;
-      ctx.font = `600 10px system-ui`;
+      ctx.font = `600 10px ${S.family}`;
       ctx.textAlign = 'left';
       for (const tm of p.hill.teams) {
         const pts = tm.points;
         const f = Math.min(1, pts / p.hill.toWin);
         const x0 = sx - W / 2 - 14;
-        ctx.fillStyle = alpha(C.bg, 0.85);
+        ctx.fillStyle = alpha(S.bg, 0.85);
         ctx.fillRect(x0 - 2, below - 2, W + 36, H + 4);
         ctx.fillStyle = alpha(teamColor(tm.team), 0.3);
         ctx.fillRect(x0, below, W, H);
         ctx.fillStyle = teamColor(tm.team);
         ctx.fillRect(x0, below, W * f, H);
-        ctx.fillStyle = C.text;
+        ctx.fillStyle = S.text;
         ctx.fillText(`${Math.max(0, p.hill.toWin - pts)} s`, x0 + W + 4, below + H / 2 + 0.5);
         below += H + 6;
       }
@@ -223,11 +232,11 @@ export function drawZones(
 
 /** The contested marker in a dark disc centred at (x, y). */
 function drawContested(ctx: CanvasRenderingContext2D, x: number, y: number): void {
-  const img = markerImage('contested', 13, C.text);
+  const img = markerImage('contested', 13, S.text);
   ctx.beginPath(); ctx.arc(x, y, 10, 0, 2 * Math.PI);
-  ctx.fillStyle = C.bg;
+  ctx.fillStyle = S.bg;
   ctx.fill();
-  ctx.strokeStyle = C.text;
+  ctx.strokeStyle = S.text;
   ctx.lineWidth = 1;
   ctx.stroke();
   if (img) ctx.drawImage(img.canvas, x - img.w / 2, y - img.h / 2, img.w, img.h);
