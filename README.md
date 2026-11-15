@@ -93,6 +93,9 @@ const zones: ZoneNow[] = [
 drawZones(ctx, (x, y) => [ox + x * zoom, oy - y * zoom], zoom, zones, { width, height });
 ```
 
+An optional last argument styles them: `{ text, muted, bg, family }`, each falling back to Films' look.
+Cartographer passes its Halo HUD colours and typeface.
+
 A zone is filled in its owner's colour, hatched with the game's contested marker while contested, ringed
 by the capture's progress in the capturing team's colour, dashed with 'Live in N s' while a hill counts
 down, a faint dashed outline while `off`, and carries its letter (or a hill's crown) from the marker
