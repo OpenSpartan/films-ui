@@ -69,7 +69,7 @@ Each module is `src/<name>.ts`, imported as `films-ui/<name>`; `films-ui` alone 
 | `cells` | Joined cells, the scoreboard's look, and `teamBand` |
 | `section` | `section`, `pageColumn`, `band`, `statStrip` |
 | `status` | `notice`, `toast`, `copyWithToast`, `statusList`, `stateTag`, `statusDot`, `emptyState`, `progressPanel`, `infoMark` |
-| `table` | `dataTable`, `kvGrid` |
+| `table` | `dataTable`, `kvGrid`, `tableStack` (tables one under another: a gap between, nothing after the last; never pad below a table, or its end reads as half a row) |
 | `masthead` | The bar a page opens with: title, lead and facts on the left, summary cells and actions on the right |
 | `ribbon` | The captioned command bar: `ribbon`, `ribbonGroup`, `command`, `splitCommand`, `dropCommand` |
 | `appHeader` | `mountAppHeader(parent, {name, beta, right})`, `setBreadcrumb`, `refreshAppHeader`: the brand, the crumbs and a right side the app builds |

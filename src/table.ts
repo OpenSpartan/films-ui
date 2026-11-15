@@ -231,6 +231,15 @@ export interface KvRow {
 }
 export interface KvGroup { title: string; summary?: Node | string; rows: readonly KvRow[] }
 
+/** Tables one under another, each with what opens it (a team's band): a
+ *  gap between them and nothing after the last. A table ends at its last
+ *  row's separator; padding under it leaves an empty band that reads as half
+ *  a row, so a stack never pads, and nothing pads below a table. */
+export function tableStack(...items: Array<Node | null | undefined | false>): HTMLDivElement {
+  return el('div', `display:flex;flex-direction:column;gap:${S[5]}px;min-width:0`,
+    ...items.filter((x): x is Node => Boolean(x)));
+}
+
 /** Groups of key-value pairs: each group an <h3> band over a <dl> grid of
  *  <dt>/<dd> pairs. `columns:2` sets groups side by side at 960 and up;
  *  below 640 keys stack over their values. `compact` is for a panel or card:
