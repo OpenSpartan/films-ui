@@ -229,8 +229,10 @@ function drawBands(
  *  its lines: the footprint's rings (`outline`), where the height steps
  *  (`edges`: round structures and along ledges), the contour lines on
  *  sloped ground (`contours`) and, in newer map data, the risers of stairs
- *  (`treads`). A line is flat [x0, y0, dx1, dy1, ...] in whole tenths of a
- *  world unit, each point after the first given from the one before it. */
+ *  (`treads`) and the walls of floor that runs under the floor in view
+ *  (`under`: a tunnel under the map, a passage under a bridge). A line is
+ *  flat [x0, y0, dx1, dy1, ...] in whole tenths of a world unit, each point
+ *  after the first given from the one before it. */
 export interface TerrainData {
   x: number;
   y: number;
@@ -242,6 +244,7 @@ export interface TerrainData {
   edges: readonly (readonly number[])[];
   contours: readonly (readonly number[])[];
   treads?: readonly (readonly number[])[];
+  under?: readonly (readonly number[])[];
 }
 
 /** A terrain ready to draw (terrainOf): its relief image (grey and alpha)
@@ -253,6 +256,7 @@ export interface Terrain {
   edges: Path2D;
   contours: Path2D;
   treads?: Path2D;
+  under?: Path2D;
   tinted: { key: string; canvas: HTMLCanvasElement } | null;
 }
 
@@ -283,6 +287,7 @@ export function terrainOf(data: TerrainData, relief: CanvasImageSource): Terrain
     edges: linesPath(data.edges, false),
     contours: linesPath(data.contours, false),
     treads: linesPath(data.treads ?? [], false),
+    under: linesPath(data.under ?? [], false),
     tinted: null,
   };
 }
@@ -345,18 +350,23 @@ function tinted(t: Terrain, style: TerrainStyle): HTMLCanvasElement | null {
   return canvas;
 }
 
+/** The dash of a wall of the floor under the floor and the gap after it,
+ *  CSS px (drawTerrain). */
+const UNDER_DASH: readonly [number, number] = [4, 3];
+
 /** Draw a terrain: its relief tinted in `style`, then its contour lines,
- *  the treads of its stairs and its edges, then its outer edge. `ctx`'s
- *  transform maps world units to the canvas, and `unit` is one world unit
- *  in CSS px, so lines keep their weight at any zoom. `opacity` scales it
- *  all. `clip` (world units, nonzero) keeps it to the area players can be
- *  in, and the outer edge then runs round what is left. `contours`,
- *  `treads` and `edges` are the lines' strengths, 0 to 1 (0.35, 0.5 and
- *  0.7 by default), and `outline` the outer edge's width, CSS px (1.6 by
+ *  the treads of its stairs, its edges and the walls of the floor under the
+ *  floor, then its outer edge. `ctx`'s transform maps world units to the
+ *  canvas, and `unit` is one world unit in CSS px, so lines keep their
+ *  weight at any zoom. `opacity` scales it all. `clip` (world units,
+ *  nonzero) keeps it to the area players can be in, and the outer edge then
+ *  runs round what is left. `contours`, `treads`, `edges` and `under` are
+ *  the lines' strengths, 0 to 1 (0.35, 0.5, 0.7 and as strong as the edges
+ *  by default), and `outline` the outer edge's width, CSS px (1.6 by
  *  default, 0 none). */
 export function drawTerrain(
   ctx: CanvasRenderingContext2D, t: Terrain, style: TerrainStyle,
-  o: { unit: number; opacity?: number; clip?: Path2D | null; contours?: number; treads?: number; edges?: number; outline?: number },
+  o: { unit: number; opacity?: number; clip?: Path2D | null; contours?: number; treads?: number; edges?: number; under?: number; outline?: number },
 ): void {
   const relief = tinted(t, style);
   layered(ctx, o.opacity ?? 1, c => {
@@ -398,6 +408,20 @@ export function drawTerrain(
       c.strokeStyle = style.edge;
       c.lineWidth = 1 / o.unit;
       c.stroke(t.edges);
+    }
+    // A wall of the floor under the floor (a tunnel under the map, a
+    // passage under a bridge) dashed over the rest, as a map draws what is
+    // below: an edge's colour and weight, its dashes square.
+    const under = o.under ?? edges;
+    if (under > 0 && t.under) {
+      c.save();
+      c.globalAlpha = under;
+      c.strokeStyle = style.edge;
+      c.lineCap = 'butt';
+      c.lineWidth = 1 / o.unit;
+      c.setLineDash([UNDER_DASH[0] / o.unit, UNDER_DASH[1] / o.unit]);
+      c.stroke(t.under);
+      c.restore();
     }
     c.restore();
     const width = o.outline ?? 1.6;
