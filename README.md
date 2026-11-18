@@ -77,7 +77,7 @@ Each module is `src/<name>.ts`, imported as `films-ui/<name>`; `films-ui` alone 
 | `markers` | Map markers: `loadMarkers(url)`, `markerImage(name, h, color)`; `paintIcon` and `loadImage` for any atlas |
 | `teamEmblems` | `loadTeamEmblems(url)`, `teamEmblem(team, size, opacity)` |
 | `zones` | `drawZones()`: zones and hills from a plain account of each one now |
-| `floor` | Floor plans (rings with their heights): `floorBands`, `ringsAt` (an elevation slice), `floorPath`, `floorHeights`, `drawFloor` |
+| `floor` | Floor plans (rings with their heights): `floorBands`, `ringsAt` (an elevation slice), `floorPath`, `floorHeights`, `drawFloor`. A map's terrain: `terrainOf`, `terrainStyle`, `drawTerrain` |
 
 ### Zones
 
@@ -123,6 +123,29 @@ const kept = ringsAt(plan.rings, followedHeight);  // or null for every floor
 const bands = floorBands(kept, min, max);
 ctx.setTransform(/* world to canvas */);
 drawFloor(ctx, bands, null, { low: MAP.floor, high: MAP.floorHigh, edge: MAP.wall, away: MAP.nlv }, { unit: pxPerWorldUnit });
+```
+
+`drawFloor` takes two more options for a hand-drawn minimap's look, both off by default: `outline`
+rings the whole floor in a colour (round all the bands, not between them, `outlineWidth` CSS px wide)
+and `inner` scales the edges between the bands (0.5, half as strong).
+
+A map's terrain is how it looks from above: lighter higher, contour lines on slopes, crisp edges where
+the height steps, and a bright outer edge. film-assets works it out from each map's collision
+geometry and writes it beside the plan, `<id>.terrain.json` (`TerrainData`: its relief image's frame
+and its lines) and `<id>.terrain.png` (the relief in grey, the footprint as alpha). `terrainOf` makes
+it ready to draw once, `terrainStyle` builds its colours from one base colour, and `drawTerrain` tints
+the relief (kept until the colours change) and draws the lines over it. Its `clip` keeps it to the
+area players can be in, with the outer edge round what is left:
+
+```ts
+import { terrainOf, terrainStyle, drawTerrain } from 'films-ui/floor';
+
+const image = new Image();
+image.src = `/terrain/${id}.terrain.png`;
+await image.decode();
+const terrain = terrainOf(await (await fetch(`/terrain/${id}.terrain.json`)).json(), image);
+ctx.setTransform(/* world to canvas */);
+drawTerrain(ctx, terrain, terrainStyle('#2f7fc1'), { unit: pxPerWorldUnit });
 ```
 
 ## Markers and emblems

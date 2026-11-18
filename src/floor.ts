@@ -106,17 +106,50 @@ function mix(a: string, b: string, f: number): string {
   return `#${[0, 1, 2].map(i => Math.round(ch(a, i) + (ch(b, i) - ch(a, i)) * f).toString(16).padStart(2, '0')).join('')}`;
 }
 
+/** Draw on `ctx` at `opacity`: straight onto it when opaque, else on a
+ *  canvas of its size with its transform, laid over it at `opacity`, so
+ *  what is drawn over what is drawn doesn't show through. */
+function layered(ctx: CanvasRenderingContext2D, opacity: number, draw: (c: CanvasRenderingContext2D) => void): void {
+  if (opacity >= 1) {
+    draw(ctx);
+    return;
+  }
+  const layer = document.createElement('canvas');
+  layer.width = ctx.canvas.width;
+  layer.height = ctx.canvas.height;
+  const c = layer.getContext('2d');
+  if (!c) return;
+  c.setTransform(ctx.getTransform());
+  draw(c);
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = opacity;
+  ctx.drawImage(layer, 0, 0);
+  ctx.restore();
+}
+
 /** Draw a floor's bands, and `outside` (the floors a slice leaves out)
  *  faint under them. `ctx`'s transform maps world units to the canvas;
  *  `unit` is one world unit in CSS px, so edges stay a pixel wide. `glow`
  *  blurs the edges in their colour, CSS px (0, none); `ratio` is the device
  *  pixel ratio the blur is in. `opacity` scales it all (a floor over a scene
- *  or under footprints). Higher bands' edges are stronger. */
+ *  or under footprints). Higher bands' edges are stronger.
+ *
+ *  Two options a hand-drawn minimap's look takes, off by default: `outline`
+ *  draws the floor's outer edge (round all the bands, not between them) in
+ *  that colour, `outlineWidth` CSS px wide (1.5 by default), and `inner`
+ *  scales the edges between bands (1 as strong as without it, 0 none). */
 export function drawFloor(
   ctx: CanvasRenderingContext2D, bands: readonly FloorBand[], outside: Path2D | null, style: FloorStyle,
-  o: { unit: number; opacity?: number; glow?: number; ratio?: number },
+  o: { unit: number; opacity?: number; glow?: number; ratio?: number; outline?: string; outlineWidth?: number; inner?: number },
 ): void {
   const opacity = o.opacity ?? 1;
+  const outline = o.outline;
+  if (outline) {
+    layered(ctx, opacity, c => drawBands(c, bands, outside, style, { ...o, outline }));
+    return;
+  }
+  const inner = o.inner ?? 1;
   ctx.save();
   ctx.lineWidth = 1 / o.unit;
   if (outside) {
@@ -135,8 +168,257 @@ export function drawFloor(
     ctx.shadowBlur = o.glow * (o.ratio ?? 1);
   }
   for (const band of bands) {
-    ctx.globalAlpha = (0.3 + 0.3 * band.t) * opacity;
+    ctx.globalAlpha = (0.3 + 0.3 * band.t) * opacity * inner;
     ctx.stroke(band.path);
   }
   ctx.restore();
+}
+
+/** drawFloor with an outline, opaque: every band's edge stroked twice as
+ *  wide as the outline first, then the bands filled over them, leaves the
+ *  outer half of the edges round the whole floor and covers the rest. */
+function drawBands(
+  ctx: CanvasRenderingContext2D, bands: readonly FloorBand[], outside: Path2D | null, style: FloorStyle,
+  o: { unit: number; glow?: number; ratio?: number; outline: string; outlineWidth?: number; inner?: number },
+): void {
+  ctx.save();
+  if (outside) {
+    ctx.globalAlpha = 0.55;
+    ctx.fillStyle = style.away;
+    ctx.fill(outside, 'nonzero');
+    ctx.globalAlpha = 1;
+  }
+  ctx.strokeStyle = o.outline;
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = (2 * (o.outlineWidth ?? 1.5)) / o.unit;
+  for (const band of bands) ctx.stroke(band.path);
+  for (const band of bands) {
+    ctx.fillStyle = mix(style.low, style.high, band.t);
+    ctx.fill(band.path, 'nonzero');
+  }
+  const inner = o.inner ?? 1;
+  if (inner > 0) {
+    ctx.lineWidth = 1 / o.unit;
+    ctx.strokeStyle = style.edge;
+    if (o.glow) {
+      ctx.shadowColor = style.edge;
+      ctx.shadowBlur = o.glow * (o.ratio ?? 1);
+    }
+    for (const band of bands) {
+      ctx.globalAlpha = (0.3 + 0.3 * band.t) * inner;
+      ctx.stroke(band.path);
+    }
+  }
+  ctx.restore();
+}
+
+// ── Terrain ─────────────────────────────────────────────────────────────
+//
+// A map's terrain as a hand-made minimap draws it: shaded by height (higher
+// is lighter), lit from the north-west, contour lines on slopes, structures
+// as flat shapes with crisp edges, and a bright outer edge. film-assets
+// works it out from each map's collision geometry and writes it beside the
+// floor plan: `<id>.terrain.png`, the relief in grey (lighter higher, its
+// shading baked in) with the map's footprint as alpha, and
+// `<id>.terrain.json`, the lines. The relief is tinted here, so a floor
+// takes any colour.
+
+/** A map's terrain, film-assets' `<id>.terrain.json`: its relief image's
+ *  top-left corner (`x`, `y`, world units), world units a pixel (`res`),
+ *  its size in pixels (`w`, `h`), the heights its grey spans (`z`), and
+ *  its lines: the footprint's rings (`outline`), where the height steps
+ *  (`edges`: round structures and along ledges), the contour lines on
+ *  sloped ground (`contours`) and, in newer map data, the risers of stairs
+ *  (`treads`). A line is flat [x0, y0, dx1, dy1, ...] in whole tenths of a
+ *  world unit, each point after the first given from the one before it. */
+export interface TerrainData {
+  x: number;
+  y: number;
+  res: number;
+  w: number;
+  h: number;
+  z: readonly [number, number];
+  outline: readonly (readonly number[])[];
+  edges: readonly (readonly number[])[];
+  contours: readonly (readonly number[])[];
+  treads?: readonly (readonly number[])[];
+}
+
+/** A terrain ready to draw (terrainOf): its relief image (grey and alpha)
+ *  and its lines as paths, built once. */
+export interface Terrain {
+  data: TerrainData;
+  relief: CanvasImageSource;
+  outline: Path2D;
+  edges: Path2D;
+  contours: Path2D;
+  treads?: Path2D;
+  tinted: { key: string; canvas: HTMLCanvasElement } | null;
+}
+
+/** A terrain's lines (TerrainData) as one path in world units, closed
+ *  when `closed`. */
+function linesPath(lines: readonly (readonly number[])[], closed: boolean): Path2D {
+  const path = new Path2D();
+  for (const l of lines) {
+    if (l.length < 4) continue;
+    let x = l[0], y = l[1];
+    path.moveTo(x / 10, y / 10);
+    for (let i = 2; i < l.length; i += 2) {
+      x += l[i];
+      y += l[i + 1];
+      path.lineTo(x / 10, y / 10);
+    }
+    if (closed) path.closePath();
+  }
+  return path;
+}
+
+/** A terrain from its data and its decoded relief image. */
+export function terrainOf(data: TerrainData, relief: CanvasImageSource): Terrain {
+  return {
+    data,
+    relief,
+    outline: linesPath(data.outline, true),
+    edges: linesPath(data.edges, false),
+    contours: linesPath(data.contours, false),
+    treads: linesPath(data.treads ?? [], false),
+    tinted: null,
+  };
+}
+
+/** A terrain's colours, `#rrggbb`: the relief's ramp (its grey maps 0 to
+ *  `low`, the middle to `mid` and 255 to `high`), the edges where the
+ *  height steps, the contour lines, and the outer edge. */
+export interface TerrainStyle {
+  low: string;
+  mid: string;
+  high: string;
+  edge: string;
+  contour: string;
+  outline: string;
+}
+
+/** A terrain style from one base colour, `#rrggbb`: the floors a deep
+ *  shade of it, higher ground lighter, lighter lines, a white outer edge. */
+export function terrainStyle(base: string): TerrainStyle {
+  return {
+    low: mix('#000000', base, 0.3),
+    mid: mix('#000000', base, 0.78),
+    high: mix(base, '#ffffff', 0.3),
+    edge: mix(base, '#ffffff', 0.65),
+    contour: mix(base, '#ffffff', 0.45),
+    outline: '#ffffff',
+  };
+}
+
+/** The relief tinted in a style's ramp, kept until the ramp changes. */
+function tinted(t: Terrain, style: TerrainStyle): HTMLCanvasElement | null {
+  const key = `${style.low}|${style.mid}|${style.high}`;
+  if (t.tinted?.key === key) return t.tinted.canvas;
+  const { w, h } = t.data;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const c = canvas.getContext('2d', { willReadFrequently: true });
+  if (!c) return null;
+  c.drawImage(t.relief, 0, 0, w, h);
+  const img = c.getImageData(0, 0, w, h);
+  const ch = (hex: string, i: number): number => parseInt(hex.slice(1 + 2 * i, 3 + 2 * i), 16);
+  const lut = new Uint8ClampedArray(256 * 3);
+  for (let g = 0; g < 256; g++) {
+    const f = g / 255;
+    const a = f < 0.5 ? style.low : style.mid;
+    const b = f < 0.5 ? style.mid : style.high;
+    const k = f < 0.5 ? f * 2 : f * 2 - 1;
+    for (let i = 0; i < 3; i++) lut[g * 3 + i] = ch(a, i) + (ch(b, i) - ch(a, i)) * k;
+  }
+  const px = img.data;
+  for (let p = 0; p < px.length; p += 4) {
+    const g = px[p] * 3;
+    px[p] = lut[g];
+    px[p + 1] = lut[g + 1];
+    px[p + 2] = lut[g + 2];
+  }
+  c.putImageData(img, 0, 0);
+  t.tinted = { key, canvas };
+  return canvas;
+}
+
+/** Draw a terrain: its relief tinted in `style`, then its contour lines,
+ *  the treads of its stairs and its edges, then its outer edge. `ctx`'s
+ *  transform maps world units to the canvas, and `unit` is one world unit
+ *  in CSS px, so lines keep their weight at any zoom. `opacity` scales it
+ *  all. `clip` (world units, nonzero) keeps it to the area players can be
+ *  in, and the outer edge then runs round what is left. `contours`,
+ *  `treads` and `edges` are the lines' strengths, 0 to 1 (0.35, 0.5 and
+ *  0.7 by default), and `outline` the outer edge's width, CSS px (1.6 by
+ *  default, 0 none). */
+export function drawTerrain(
+  ctx: CanvasRenderingContext2D, t: Terrain, style: TerrainStyle,
+  o: { unit: number; opacity?: number; clip?: Path2D | null; contours?: number; treads?: number; edges?: number; outline?: number },
+): void {
+  const relief = tinted(t, style);
+  layered(ctx, o.opacity ?? 1, c => {
+    const { x, y, res, w, h } = t.data;
+    c.save();
+    if (o.clip) c.clip(o.clip, 'nonzero');
+    if (relief) {
+      c.save();
+      c.imageSmoothingEnabled = true;
+      c.imageSmoothingQuality = 'high';
+      c.transform(res, 0, 0, -res, x, y);
+      c.drawImage(relief, 0, 0, w, h);
+      c.restore();
+    }
+    c.lineJoin = 'round';
+    c.lineCap = 'round';
+    const contours = o.contours ?? 0.35;
+    if (contours > 0) {
+      c.globalAlpha = contours;
+      c.strokeStyle = style.contour;
+      c.lineWidth = 0.75 / o.unit;
+      c.stroke(t.contours);
+    }
+    // A riser of stairs as a fine crisp line across the flight, its ends
+    // square so the flight's sides stay straight.
+    const treads = o.treads ?? 0.5;
+    if (treads > 0 && t.treads) {
+      c.save();
+      c.globalAlpha = treads;
+      c.strokeStyle = style.edge;
+      c.lineCap = 'butt';
+      c.lineWidth = 0.75 / o.unit;
+      c.stroke(t.treads);
+      c.restore();
+    }
+    const edges = o.edges ?? 0.7;
+    if (edges > 0) {
+      c.globalAlpha = edges;
+      c.strokeStyle = style.edge;
+      c.lineWidth = 1 / o.unit;
+      c.stroke(t.edges);
+    }
+    c.restore();
+    const width = o.outline ?? 1.6;
+    if (width > 0) {
+      c.save();
+      c.strokeStyle = style.outline;
+      c.lineJoin = 'round';
+      c.lineWidth = width / o.unit;
+      if (o.clip) {
+        // Round what is left: the footprint's edge inside the clip, and the
+        // clip's edge inside the footprint.
+        c.save();
+        c.clip(o.clip, 'nonzero');
+        c.stroke(t.outline);
+        c.restore();
+        c.clip(t.outline, 'evenodd');
+        c.stroke(o.clip);
+      } else {
+        c.stroke(t.outline);
+      }
+      c.restore();
+    }
+  });
 }
