@@ -350,9 +350,12 @@ function tinted(t: Terrain, style: TerrainStyle): HTMLCanvasElement | null {
   return canvas;
 }
 
-/** The dash of a wall of the floor under the floor and the gap after it,
- *  CSS px (drawTerrain). */
-const UNDER_DASH: readonly [number, number] = [4, 3];
+/** A wall of the floor under the floor (drawTerrain), CSS px: its dash and
+ *  the gap after it, the dashes' width and the width of the dark casing
+ *  under them, which keeps them clear on low and high floor alike. */
+const UNDER_DASH: readonly [number, number] = [6, 4];
+const UNDER_WIDTH = 2;
+const UNDER_CASING = 4;
 
 /** Draw a terrain: its relief tinted in `style`, then its contour lines,
  *  the treads of its stairs, its edges and the walls of the floor under the
@@ -411,14 +414,19 @@ export function drawTerrain(
     }
     // A wall of the floor under the floor (a tunnel under the map, a
     // passage under a bridge) dashed over the rest, as a map draws what is
-    // below: an edge's colour and weight, its dashes square.
+    // below: heavy dashes in the edges' colour, square, on a solid casing a
+    // deep shade of the low floor.
     const under = o.under ?? edges;
     if (under > 0 && t.under) {
       c.save();
+      c.lineCap = 'butt';
+      c.globalAlpha = under * 0.85;
+      c.strokeStyle = mix('#000000', style.low, 0.4);
+      c.lineWidth = UNDER_CASING / o.unit;
+      c.stroke(t.under);
       c.globalAlpha = under;
       c.strokeStyle = style.edge;
-      c.lineCap = 'butt';
-      c.lineWidth = 1 / o.unit;
+      c.lineWidth = UNDER_WIDTH / o.unit;
       c.setLineDash([UNDER_DASH[0] / o.unit, UNDER_DASH[1] / o.unit]);
       c.stroke(t.under);
       c.restore();
